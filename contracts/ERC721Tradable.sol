@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -16,20 +17,29 @@ contract ProxyRegistry {
     mapping(address => OwnableDelegateProxy) public proxies;
 }
 
-contract Erc721Template is ContextMixin, ERC721Enumerable, NativeMetaTransaction, Ownable {
+/**
+ * @title ERC721Tradable
+ * ERC721Tradable - ERC721 contract that whitelists a trading address, and has minting functionality.
+ */
+abstract contract ERC721Tradable is ContextMixin, ERC721Enumerable, NativeMetaTransaction, Ownable {
     using SafeMath for uint256;
 
-    mapping(uint256 => uint256) public tradeCount;
-    mapping(address => uint) public openSeaAddress;
     address proxyRegistryAddress;
     uint256 private _currentTokenId = 0;
 
-    constructor(address[] memory _listOpenSeaAddresses, string memory _name, string memory _symbol, address _proxyRegistryAddress) ERC721(_name, _symbol) {
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        address _proxyRegistryAddress
+    ) ERC721(_name, _symbol) {
         proxyRegistryAddress = _proxyRegistryAddress;
         _initializeEIP712(_name);
-        _changeStatusOpenSeaAddress(_listOpenSeaAddresses, 1);
     }
 
+    /**
+     * @dev Mints a token to an address with a tokenURI.
+     * @param _to address of the future owner of the token
+     */
     function mintTo(address _to) public onlyOwner {
         uint256 newTokenId = _getNextTokenId();
         _mint(_to, newTokenId);
@@ -51,9 +61,7 @@ contract Erc721Template is ContextMixin, ERC721Enumerable, NativeMetaTransaction
         _currentTokenId++;
     }
 
-    function baseTokenURI() public pure returns (string memory) {
-        return "https://opensea-creatures-api.herokuapp.com/api/creature/";
-    }
+    function baseTokenURI() virtual public pure returns (string memory);
 
     function tokenURI(uint256 _tokenId) override public pure returns (string memory) {
         return string(abi.encodePacked(baseTokenURI(), Strings.toString(_tokenId)));
@@ -88,26 +96,4 @@ contract Erc721Template is ContextMixin, ERC721Enumerable, NativeMetaTransaction
     {
         return ContextMixin.msgSender();
     }
-
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId) internal override {
-        super._beforeTokenTransfer(from, to, tokenId);
-        if (openSeaAddress[from] == 1) {
-            tradeCount[tokenId] = tradeCount[tokenId].add(1);
-        }
-    }
-
-    function addOpenSeaAddress(address[] memory listAddresses) public onlyOwner {
-        _changeStatusOpenSeaAddress(listAddresses, 1);
-    }
-
-    function removeOpenSeaAddress(address[] memory listAddresses) public onlyOwner {
-        _changeStatusOpenSeaAddress(listAddresses, 0);
-    }
-
-    function _changeStatusOpenSeaAddress(address[] memory listAddresses, uint256 status) private {
-        for (uint i = 0; i < listAddresses.length; i++) {
-            openSeaAddress[listAddresses[i]] = status;
-        }
-    }
-
 }
